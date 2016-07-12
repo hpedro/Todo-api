@@ -151,6 +151,7 @@ app.post('/users', function(req, res) {
 	db.user.create(body).then(function(user) {
 		res.json(user.toPublicJSON());
 	}, function(e) {
+		console.log('Failed 10');
 		res.status(400).json(e);
 	});
 });
@@ -159,20 +160,34 @@ app.post('/users', function(req, res) {
 
 app.post('/users/login', function(req, res) {
 	var body = _.pick(req.body, 'email', 'password');
+	var userInstance;
 
 	db.user.authenticate(body).then( function(user) {
 		var token =  user.generateToken('authentication');
-		if (token) {
-			res.header('Auth', token).json(user.toPublicJSON());
-		} else {
-			console.log('Failed 1');
-			res.status(401).send();
-		}
-	}, function() {
+		userInstance = user;
+
+		return db.token.create({
+			token: token
+		});
+
+	}).then( function(tokenInstance) {
+		res.header('Auth', tokenInstance.get('token')).json(userInstance.toPublicJSON());
+
+	}).catch( function() {
 		console.log('Failed 2');
 		res.status(401).send();
 	});
 })
+
+// DELETE /users/login
+
+app.delete('/users/login', middleware.requireAuthentication, function (req, res) {
+	req.token.destroy().then(function() {
+		res.status(204).send();
+	}).catch(function() {
+		res.status(500).send();
+	})
+});
 
 
 db.sequelize.sync({force: true}).then(function() {
